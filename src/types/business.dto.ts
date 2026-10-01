@@ -18,6 +18,7 @@ export interface BusinessDetailDTO extends BusinessRow {
   subscription_status?: string
   trial_ends_at?: string | null
   current_period_end?: string | null
+  device_limit?: number | null
 }
 
 export interface BusinessDetailStats {

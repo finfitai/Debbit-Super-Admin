@@ -19,8 +19,31 @@ Deno.serve(async (req: Request) => {
 
   const body = await req.json().catch(() => ({}))
   const id = typeof body.id === 'string' ? body.id : ''
+  if (!id) return json({ ok: false, error: 'id is required' }, 400)
+
+  if (body.action === 'set_device_limit') {
+    // NULL = unlimited (deliberate override); any other value must be a
+    // non-negative integer. Mirrors down to the desktop app via the
+    // existing sync-pull cycle — see db/244_license_hardening.sql /
+    // supabase/migrations/059_device_limit.sql.
+    const raw = body.device_limit
+    const deviceLimit = raw === null ? null : Number(raw)
+    if (deviceLimit !== null && (!Number.isInteger(deviceLimit) || deviceLimit < 0)) {
+      return json({ ok: false, error: 'device_limit must be a non-negative integer, or null for unlimited' }, 400)
+    }
+    const { data, error } = await supabase
+      .from('businesses')
+      .update({ device_limit: deviceLimit })
+      .eq('id', id)
+      .select('id, device_limit')
+      .maybeSingle()
+    if (error) return json({ ok: false, error: error.message }, 500)
+    if (!data) return json({ ok: false, error: 'Business not found' }, 404)
+    return json({ ok: true, business: data })
+  }
+
   const action = body.action === 'activate' ? 'activate' : body.action === 'suspend' ? 'suspend' : null
-  if (!id || !action) return json({ ok: false, error: 'id and action ("suspend" | "activate") are required' }, 400)
+  if (!action) return json({ ok: false, error: 'action must be "suspend", "activate", or "set_device_limit"' }, 400)
 
   const { data, error } = await supabase
     .from('businesses')

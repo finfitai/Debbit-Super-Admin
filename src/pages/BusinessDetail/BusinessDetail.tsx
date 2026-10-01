@@ -19,6 +19,9 @@ export default function BusinessDetail() {
   const [shifts, setShifts]     = useState<ShiftRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
+  const [limitInput, setLimitInput] = useState('')
+  const [limitBusy, setLimitBusy]   = useState(false)
+  const [limitMsg, setLimitMsg]     = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -46,6 +49,8 @@ export default function BusinessDetail() {
         setDevices(data.devices ?? [])
         setSyncDevices(data.syncDevices ?? [])
         setShifts(data.shifts ?? [])
+        const dl = data.business?.device_limit
+        setLimitInput(dl == null ? '' : String(dl))
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load')
         setBusiness(null)
@@ -56,6 +61,32 @@ export default function BusinessDetail() {
     }
     if (id) void load()
   }, [id])
+
+  async function saveDeviceLimit() {
+    if (!business) return
+    const trimmed = limitInput.trim()
+    const deviceLimit = trimmed === '' ? null : Number(trimmed)
+    if (deviceLimit !== null && (!Number.isInteger(deviceLimit) || deviceLimit < 0)) {
+      setLimitMsg('Enter a whole number 0 or greater, or leave blank for unlimited.')
+      return
+    }
+    setLimitBusy(true)
+    setLimitMsg(null)
+    try {
+      const { data, error: err } = await supabase.functions.invoke<{ ok?: boolean; business?: { device_limit: number | null }; error?: string }>('admin-business-action', {
+        body: { id: business.id, action: 'set_device_limit', device_limit: deviceLimit },
+      })
+      if (err || !data?.ok) {
+        setLimitMsg(err?.message || data?.error || 'Failed to update device limit')
+        return
+      }
+      setBusiness(prev => prev ? { ...prev, device_limit: data.business?.device_limit ?? deviceLimit } : prev)
+      setLimitMsg('Saved.')
+      setTimeout(() => setLimitMsg(null), 3000)
+    } finally {
+      setLimitBusy(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -160,9 +191,26 @@ export default function BusinessDetail() {
       {/* Devices & Sync Sessions */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px', marginBottom: '24px' }}>
         <div className="card">
-          <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-primary)' }}>
-            POS Terminals ({devices.length})
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px', gap: '12px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              POS Terminals ({devices.length})
+            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Device cap</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="∞"
+                value={limitInput}
+                onChange={e => setLimitInput(e.target.value)}
+                style={{ width: '56px', padding: '4px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+              />
+              <button className="btn btn-sm" disabled={limitBusy} onClick={() => void saveDeviceLimit()}>
+                {limitBusy ? '…' : 'Save'}
+              </button>
+            </div>
+          </div>
+          {limitMsg && <div style={{ fontSize: '11px', color: limitMsg === 'Saved.' ? 'var(--green)' : 'var(--red)', marginBottom: '10px' }}>{limitMsg}</div>}
           {devices.length === 0 ? (
             <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>No workstations registered.</div>
           ) : (

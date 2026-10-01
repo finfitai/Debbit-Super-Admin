@@ -10,11 +10,19 @@ export interface BusinessRow {
 }
 
 export interface BusinessDetailDTO extends BusinessRow {
-  owner_email?: string
-  phone?: string
-  address?: string
-  subscription_tier?: string
-  active_users_count?: number
-  workstations_count?: number
-  total_revenue_myr?: number
+  owner?: { email?: string; full_name?: string } | null
+  phone?: string | null
+  email?: string | null
+  address_line1?: string | null
+  city?: string | null
+  subscription_status?: string
+  trial_ends_at?: string | null
+  current_period_end?: string | null
+}
+
+export interface BusinessDetailStats {
+  activeMembers: number
+  activeWorkstations: number
+  totalRevenue: number
+  saleCount: number
 }

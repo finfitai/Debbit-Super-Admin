@@ -1,5 +1,6 @@
 -- =============================================================================
--- debbit OS · Migration 030 · Admin portal performance indexes
+-- debbit OS · Migration 052 · Admin portal performance indexes
+-- Run AFTER 051_super_admin.sql
 -- =============================================================================
 
 DO $$

@@ -33,14 +33,15 @@ export default function Businesses() {
 
   async function toggleActive(row: BusinessRow) {
     const next = !row.is_active
-    const { error: err } = await supabase
-      .from('businesses')
-      .update({ is_active: next })
-      .eq('id', row.id)
-    if (!err) {
+    const { data, error: err } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>('admin-business-action', {
+      body: { id: row.id, action: next ? 'activate' : 'suspend' },
+    })
+    if (!err && data?.ok) {
       setData(prev => prev.map(item => item.id === row.id ? { ...item, is_active: next } : item))
       setActionMsg(`${String(row.name)} ${next ? 'activated' : 'suspended'}.`)
       setTimeout(() => setActionMsg(null), 3000)
+    } else {
+      setError(err?.message || data?.error || 'Failed to update business')
     }
   }
 

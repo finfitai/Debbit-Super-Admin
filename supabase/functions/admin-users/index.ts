@@ -12,22 +12,12 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: err.message }, err.status ?? 500)
   }
 
-  let body: { limit?: number } = {}
-  try {
-    body = await req.json()
-  } catch {
-    body = {}
-  }
-
-  const limit = Math.max(1, Math.min(200, Number(body.limit) || 100))
-
   const { data, error } = await supabase
-    .from('app_telemetry')
-    .select('business_id, device_id, app_version, platform, event_type, scope, severity, message, occurred_at')
-    .order('occurred_at', { ascending: false })
-    .limit(limit)
+    .from('business_members')
+    .select('business_id, user_id, role, is_active, joined_at, users(full_name,email), businesses(name)')
+    .order('joined_at', { ascending: false })
 
   if (error) return json({ ok: false, error: error.message }, 500)
 
-  return json({ ok: true, data: data ?? [] })
+  return json({ ok: true, members: data ?? [] })
 })

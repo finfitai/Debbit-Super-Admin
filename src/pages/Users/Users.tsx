@@ -25,15 +25,12 @@ export default function Users() {
     setLoading(true)
     setError(null)
     try {
-      const { data: rows, error: err } = await supabase
-        .from('business_members')
-        .select('business_id, user_id, role, is_active, joined_at, users(full_name,email), businesses(name)')
-        .order('joined_at', { ascending: false })
-      if (err) {
-        setError(err.message)
+      const { data: resp, error: err } = await supabase.functions.invoke<{ ok?: boolean; members?: BusinessMemberRow[]; error?: string }>('admin-users')
+      if (err || !resp?.ok) {
+        setError(err?.message || resp?.error || 'Failed to load users')
         setData([])
       } else {
-        setData((rows ?? []) as BusinessMemberRow[])
+        setData((resp.members ?? []) as BusinessMemberRow[])
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load')

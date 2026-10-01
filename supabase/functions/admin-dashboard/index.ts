@@ -1,29 +1,15 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-}
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'content-type': 'application/json',
-      ...CORS_HEADERS,
-    },
-  })
-}
+import { CORS_HEADERS, json, requireSuperAdmin, AuthzError } from '../_shared/authz.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
   if (req.method !== 'POST') return json({ ok: false, error: 'Method not allowed' }, 405)
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  const serviceRoleKey = Deno.env.get('SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-  if (!supabaseUrl || !serviceRoleKey) {
-    return json({ ok: false, error: 'Missing Supabase environment variables' }, 500)
+  let supabase
+  try {
+    ;({ supabase } = await requireSuperAdmin(req))
+  } catch (e) {
+    const err = e as AuthzError
+    return json({ ok: false, error: err.message }, err.status ?? 500)
   }
 
   let body: { days?: number } = {}
@@ -42,10 +28,6 @@ Deno.serve(async (req: Request) => {
     dayLabels.push(d.toISOString().slice(0, 10))
   }
   const today = dayLabels[dayLabels.length - 1]
-
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
 
   const [bizRes, wsRes, salesRes, supportRes] = await Promise.all([
     supabase.from('businesses').select('id', { count: 'exact', head: true }),

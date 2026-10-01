@@ -108,34 +108,6 @@ export interface DashboardStats {
   newBusinesses7d: number
 }
 
-export type BillingStatus = 'Active' | 'Past Due' | 'Suspended' | 'Cancelled'
-export type BillingCycle = 'Monthly' | 'Annual'
-export type PlanTier = 'Starter' | 'Growth' | 'Enterprise'
-
-export interface BillingSubscription {
-  id: string
-  business_id: string
-  business_name: string
-  plan_tier: PlanTier
-  amount: number
-  billing_cycle: BillingCycle
-  next_billing_date: string
-  status: BillingStatus
-  is_enabled: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface BillingRow {
-  id: string
-  business_name: string
-  plan: string
-  amount: string
-  billing_cycle: string
-  next_billing: string
-  status: string
-}
-
 // ─── Pagination ────────────────────────────────────────────────────────────
 
 export interface ColumnDef<T = any> {

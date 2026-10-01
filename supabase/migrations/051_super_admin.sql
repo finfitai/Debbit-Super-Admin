@@ -1,6 +1,10 @@
 -- =============================================================================
--- debbit OS · Migration 029 · Super Admin Portal
--- Run AFTER 028_security_hardening.sql
+-- debbit OS · Migration 051 · Super Admin Portal
+-- Run AFTER 050_extend_trial_to_one_month.sql
+-- (Scaffolded in the debbit-super-admin repo as 029/030; renumbered here to
+-- the real next-free slot in this repo's canonical migration sequence,
+-- since 029/030 were already taken by 029_field_orders_geo.sql /
+-- 030_field_attendance.sql.)
 --
 -- Creates a super_admins allowlist table.
 -- Only rows in this table can access the Super Admin Portal.

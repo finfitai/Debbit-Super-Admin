@@ -3,65 +3,45 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import StatusBadge from '../../components/atoms/StatusBadge'
 import StatCard from '../../components/molecules/StatCard'
-import { BusinessDetailDTO } from '../../types'
+import { BusinessDetailDTO, BusinessDetailStats } from '../../types'
 import { businessDetailStyles } from './BusinessDetail.styles'
 
 export default function BusinessDetail() {
   const { id } = useParams<{ id: string }>()
   const [business, setBusiness] = useState<BusinessDetailDTO | null>(null)
+  const [stats, setStats]       = useState<BusinessDetailStats | null>(null)
   const [loading, setLoading]   = useState(true)
+  const [error, setError]       = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
       setLoading(true)
+      setError(null)
       try {
-        const { data, error } = await supabase
-          .from('businesses')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle()
-        if (!error && data) {
-          setBusiness(data as BusinessDetailDTO)
-        } else {
-          setBusiness({
-            id: id || 'b1',
-            name: 'Metro Mart KL',
-            legal_name: 'Metro Mart Sdn Bhd',
-            country: 'MY',
-            currency: 'MYR',
-            business_type: 'RETAIL',
-            created_at: new Date().toISOString(),
-            is_active: true,
-            owner_email: 'owner@metromart.my',
-            phone: '+60 12-345 6789',
-            subscription_tier: 'Growth Plan',
-            active_users_count: 12,
-            workstations_count: 4,
-            total_revenue_myr: 148200,
-          })
+        const { data, error: err } = await supabase.functions.invoke<{
+          ok?: boolean
+          business?: BusinessDetailDTO
+          stats?: BusinessDetailStats
+          error?: string
+        }>('admin-business-detail', { body: { id } })
+
+        if (err || !data?.ok) {
+          setError(err?.message || data?.error || 'Failed to load business')
+          setBusiness(null)
+          setStats(null)
+          return
         }
-      } catch {
-        setBusiness({
-          id: id || 'b1',
-          name: 'Metro Mart KL',
-          legal_name: 'Metro Mart Sdn Bhd',
-          country: 'MY',
-          currency: 'MYR',
-          business_type: 'RETAIL',
-          created_at: new Date().toISOString(),
-          is_active: true,
-          owner_email: 'owner@metromart.my',
-          phone: '+60 12-345 6789',
-          subscription_tier: 'Growth Plan',
-          active_users_count: 12,
-          workstations_count: 4,
-          total_revenue_myr: 148200,
-        })
+        setBusiness(data.business ?? null)
+        setStats(data.stats ?? null)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load')
+        setBusiness(null)
+        setStats(null)
       } finally {
         setLoading(false)
       }
     }
-    void load()
+    if (id) void load()
   }, [id])
 
   if (loading) {
@@ -73,12 +53,12 @@ export default function BusinessDetail() {
     )
   }
 
-  if (!business) {
+  if (error || !business) {
     return (
       <div>
         <Link to="/businesses" className="btn btn-ghost">← Back to Businesses</Link>
         <div className="empty-state" style={{ marginTop: '40px' }}>
-          <p>Business not found.</p>
+          <p>{error || 'Business not found.'}</p>
         </div>
       </div>
     )
@@ -104,9 +84,9 @@ export default function BusinessDetail() {
 
       {/* Overview Cards */}
       <div style={businessDetailStyles.kpiGrid}>
-        <StatCard title="REVENUE (YTD)" value={`RM ${(business.total_revenue_myr || 148200).toLocaleString()}`} accentColor="violet" />
-        <StatCard title="ACTIVE WORKSTATIONS" value={business.workstations_count || 4} accentColor="green" />
-        <StatCard title="REGISTERED USERS" value={business.active_users_count || 12} accentColor="blue" />
+        <StatCard title="TOTAL REVENUE" value={`${business.currency} ${(stats?.totalRevenue ?? 0).toLocaleString()}`} accentColor="violet" />
+        <StatCard title="ACTIVE WORKSTATIONS" value={stats?.activeWorkstations ?? 0} accentColor="green" />
+        <StatCard title="ACTIVE MEMBERS" value={stats?.activeMembers ?? 0} accentColor="blue" />
       </div>
 
       {/* Details Box */}
@@ -116,20 +96,50 @@ export default function BusinessDetail() {
         </h2>
         <div style={businessDetailStyles.metaGrid}>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>OWNER EMAIL</div>
-            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '2px' }}>{business.owner_email || 'owner@debbit.io'}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>OWNER</div>
+            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '2px' }}>
+              {business.owner?.full_name || '—'}
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{business.owner?.email || '—'}</div>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>PHONE</div>
-            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '2px' }}>{business.phone || '+60 12-345 6789'}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>PHONE / EMAIL</div>
+            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '2px' }}>{business.phone || '—'}</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{business.email || '—'}</div>
           </div>
           <div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>COUNTRY / CURRENCY</div>
             <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '2px' }}>{business.country} / {business.currency}</div>
           </div>
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>SUBSCRIPTION TIER</div>
-            <div style={{ fontSize: '14px', color: 'var(--purple-main)', fontWeight: 700, marginTop: '2px' }}>{business.subscription_tier || 'Growth Plan'}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>SUBSCRIPTION</div>
+            <div style={{ marginTop: '2px' }}>
+              <StatusBadge variant={
+                business.subscription_status === 'active' ? 'green'
+                : business.subscription_status === 'trialing' ? 'cyan'
+                : business.subscription_status === 'past_due' ? 'amber'
+                : 'red'
+              }>
+                {business.subscription_status || 'unknown'}
+              </StatusBadge>
+            </div>
+            {business.subscription_status === 'trialing' && business.trial_ends_at && (
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                Trial ends {new Date(business.trial_ends_at).toLocaleDateString()}
+              </div>
+            )}
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>REGISTERED</div>
+            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '2px' }}>
+              {business.created_at ? new Date(business.created_at).toLocaleDateString() : '—'}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700 }}>ADDRESS</div>
+            <div style={{ fontSize: '14px', color: 'var(--text-primary)', marginTop: '2px' }}>
+              {[business.address_line1, business.city].filter(Boolean).join(', ') || '—'}
+            </div>
           </div>
         </div>
       </div>

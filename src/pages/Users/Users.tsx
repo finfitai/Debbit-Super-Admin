@@ -7,6 +7,7 @@ import { usersStyles } from './Users.styles'
 
 // Matches the `business_members` table with joined `businesses` data
 interface BusinessMemberRow {
+  id: string
   business_id: string
   user_id: string
   role: string
@@ -20,6 +21,8 @@ export default function Users() {
   const [data, setData]       = useState<BusinessMemberRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
+  const [actionMsg, setActionMsg] = useState<string | null>(null)
+  const [busyId, setBusyId]   = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -41,6 +44,25 @@ export default function Users() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  async function toggleMember(row: BusinessMemberRow) {
+    setBusyId(row.id)
+    try {
+      const { data: resp, error: err } = await supabase.functions.invoke<{ ok?: boolean; member?: { is_active: boolean }; error?: string }>('admin-users', {
+        body: { op: 'toggle', id: row.id },
+      })
+      if (err || !resp?.ok) {
+        setError(err?.message || resp?.error || 'Failed to update member')
+        return
+      }
+      const next = resp.member?.is_active ?? !row.is_active
+      setData(prev => prev.map(item => item.id === row.id ? { ...item, is_active: next } : item))
+      setActionMsg(`${row.users?.full_name || row.users?.email || 'User'} ${next ? 'enabled' : 'disabled'}.`)
+      setTimeout(() => setActionMsg(null), 3000)
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   const columns: ColumnDef<BusinessMemberRow>[] = [
     {
@@ -91,6 +113,16 @@ export default function Users() {
     },
   ]
 
+  const actions = (row: BusinessMemberRow) => (
+    <button
+      className={`btn btn-sm ${row.is_active ? 'btn-danger' : 'btn-success'}`}
+      disabled={busyId === row.id}
+      onClick={() => void toggleMember(row)}
+    >
+      {busyId === row.id ? '…' : row.is_active ? 'Disable' : 'Enable'}
+    </button>
+  )
+
   return (
     <div className="fade-in">
       <div style={usersStyles.headerRow}>
@@ -102,6 +134,12 @@ export default function Users() {
           🔄 Refresh
         </button>
       </div>
+
+      {actionMsg && (
+        <div className="alert alert-success" style={{ marginBottom: '20px' }}>
+          ✓ {actionMsg}
+        </div>
+      )}
 
       {error && (
         <div className="alert alert-danger" style={{ marginBottom: '20px' }}>
@@ -115,7 +153,8 @@ export default function Users() {
         data={data}
         loading={loading}
         searchPlaceholder="Search by user name, email, role, business…"
-        rowKey={(r) => `${r.business_id}_${r.user_id}`}
+        rowKey={(r) => r.id}
+        actions={actions}
       />
     </div>
   )

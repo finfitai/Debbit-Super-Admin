@@ -8,8 +8,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit",
-    "test:ai-proxy": "node supabase/tests/ai-proxy.test.mjs"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -23,7 +22,6 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.3",
-    "vite": "^5.4.1",
-    "esbuild": "^0.21.5"
+    "vite": "^5.4.1"
   }
 }

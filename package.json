@@ -2,13 +2,14 @@
   "name": "debbit-super-admin",
   "private": true,
   "version": "1.0.0",
-  "description": "debbit OS — Super Admin Portal",
+  "description": "debbit OS \u2014 Super Admin Portal",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test:ai-proxy": "node supabase/tests/ai-proxy.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -22,6 +23,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "typescript": "^5.5.3",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "esbuild": "^0.21.5"
   }
 }

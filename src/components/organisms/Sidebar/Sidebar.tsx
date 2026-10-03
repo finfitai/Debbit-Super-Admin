@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { to: '/telemetry',   label: 'Telemetry',   subtitle: 'Error & crash logs',    icon: '📡' },
   { to: '/sync',        label: 'Sync Health', subtitle: 'Workstations & POS',   icon: '🔄' },
   { to: '/billing',     label: 'Billing',     subtitle: 'Subscriptions & MRR',  icon: '💳' },
+  { to: '/ai',          label: 'AI Usage',    subtitle: 'Metering & controls',  icon: '🤖' },
 ]
 
 export default function Sidebar() {

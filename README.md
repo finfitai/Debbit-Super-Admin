@@ -31,3 +31,17 @@ Every `admin-*` Edge Function starts by calling `requireSuperAdmin()`,
 which verifies the caller's Supabase session belongs to an active row in
 `super_admins` before touching any cross-business data with the
 service-role key.
+
+## AI proxy (`ai-proxy`) and the AI Usage page
+
+Customers never hold an AI key. Desktops call the `ai-proxy` Edge Function,
+signed with their per-device HMAC (same scheme as sync/telemetry). The proxy
+enforces the kill switch, a per-business on/off flag, a per-minute rate limit
+and a monthly token budget, forces the model and output cap configured in
+`ai_global_config`, calls Anthropic with the server-side secret and records
+token counts (never prompts or replies) in `ai_usage`.
+
+- Secret: `supabase secrets set ANTHROPIC_API_KEY=sk-ant-...`
+- Migration: `064_ai_proxy.sql`. Deploy: `supabase functions deploy ai-proxy admin-ai-usage`
+- Portal: **AI Usage** page (usage per business, budgets, on/off, kill switch, model, prices)
+- Offline test of the proxy logic: `npm run test:ai-proxy`

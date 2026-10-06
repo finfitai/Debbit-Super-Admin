@@ -1,4 +1,5 @@
 import { CORS_HEADERS, json, requireSuperAdmin, AuthzError } from '../_shared/authz.ts'
+import { fetchAll } from '../_shared/paginate.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
@@ -12,10 +13,12 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: err.message }, err.status ?? 500)
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await fetchAll((from, to) => supabase
     .from('businesses')
     .select('*')
     .order('created_at', { ascending: false })
+    .order('id')
+    .range(from, to))
 
   if (error) return json({ ok: false, error: error.message }, 500)
 

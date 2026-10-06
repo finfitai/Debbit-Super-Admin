@@ -26,6 +26,7 @@ export interface BusinessDetailStats {
   activeWorkstations: number
   totalRevenue: number
   saleCount: number
+  activeStaffLogins?: number
 }
 
 export interface WorkstationDeviceRow {
@@ -58,4 +59,13 @@ export interface ShiftRow {
   flagged: boolean
   created_at: string
   cashier: { full_name?: string } | null
+}
+
+export interface BusinessStaffRow {
+  id: string
+  email: string
+  full_name: string | null
+  role: string
+  is_active: boolean
+  created_at: string
 }

@@ -15,6 +15,7 @@ import Users from './pages/Users/Users'
 import Telemetry from './pages/Telemetry/Telemetry'
 import SyncHealth from './pages/SyncHealth/SyncHealth'
 import Billing from './pages/Billing/Billing'
+import Admins from './pages/Admins/Admins'
 
 // ─── Error Boundary ───────────────────────────────────────────────────────────
 
@@ -97,6 +98,7 @@ function ProtectedLayout() {
         <Route path="/telemetry"      element={<Telemetry />} />
         <Route path="/sync"           element={<SyncHealth />} />
         <Route path="/billing"        element={<Billing />} />
+        <Route path="/admins"         element={<Admins />} />
         <Route path="*"               element={<Navigate to="/" replace />} />
       </Routes>
     </MainLayout>

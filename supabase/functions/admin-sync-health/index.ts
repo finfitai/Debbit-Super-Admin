@@ -1,4 +1,5 @@
 import { CORS_HEADERS, json, requireSuperAdmin, AuthzError } from '../_shared/authz.ts'
+import { fetchAll } from '../_shared/paginate.ts'
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS })
@@ -23,7 +24,7 @@ Deno.serve(async (req: Request) => {
   const since = new Date(Date.now() - days * 86400000).toISOString()
 
   const [wsRes, auditRes] = await Promise.all([
-    supabase.from('workstation_devices').select('*').order('updated_at', { ascending: false }),
+    fetchAll((from, to) => supabase.from('workstation_devices').select('*').order('updated_at', { ascending: false }).order('id').range(from, to)),
     supabase
       .from('workstation_audit_logs')
       .select('*')

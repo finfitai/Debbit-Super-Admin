@@ -25,3 +25,6 @@ build
 # OS System Files
 .DS_Store
 Thumbs.db
+
+# Supabase CLI scratch
+supabase/.temp/cli-latest

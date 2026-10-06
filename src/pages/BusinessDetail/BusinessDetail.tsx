@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import StatusBadge from '../../components/atoms/StatusBadge'
 import StatCard from '../../components/molecules/StatCard'
-import { BusinessDetailDTO, BusinessDetailStats, WorkstationDeviceRow, SyncDeviceRow, ShiftRow } from '../../types'
+import { BusinessDetailDTO, BusinessDetailStats, BusinessStaffRow, WorkstationDeviceRow, SyncDeviceRow, ShiftRow } from '../../types'
 import { businessDetailStyles } from './BusinessDetail.styles'
 
 function fmtDate(v: string | null | undefined) {
@@ -17,6 +17,10 @@ export default function BusinessDetail() {
   const [devices, setDevices]   = useState<WorkstationDeviceRow[]>([])
   const [syncDevices, setSyncDevices] = useState<SyncDeviceRow[]>([])
   const [shifts, setShifts]     = useState<ShiftRow[]>([])
+  const [staff, setStaff]       = useState<BusinessStaffRow[]>([])
+  const [trialDays, setTrialDays]   = useState('14')
+  const [actionBusy, setActionBusy] = useState<string | null>(null)
+  const [actionMsg, setActionMsg]   = useState<string | null>(null)
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
   const [limitInput, setLimitInput] = useState('')
@@ -35,6 +39,7 @@ export default function BusinessDetail() {
           devices?: WorkstationDeviceRow[]
           syncDevices?: SyncDeviceRow[]
           shifts?: ShiftRow[]
+          staff?: BusinessStaffRow[]
           error?: string
         }>('admin-business-detail', { body: { id } })
 
@@ -49,6 +54,7 @@ export default function BusinessDetail() {
         setDevices(data.devices ?? [])
         setSyncDevices(data.syncDevices ?? [])
         setShifts(data.shifts ?? [])
+        setStaff(data.staff ?? [])
         const dl = data.business?.device_limit
         setLimitInput(dl == null ? '' : String(dl))
       } catch (e) {
@@ -88,6 +94,42 @@ export default function BusinessDetail() {
     }
   }
 
+  // One place for the small portal actions on this business, so the message / busy handling is the same for each.
+  async function runAction(key: string, body: Record<string, unknown>, apply: (resp: Record<string, unknown>) => void, okMsg: string) {
+    if (!business) return
+    setActionBusy(key)
+    setActionMsg(null)
+    try {
+      const { data, error: err } = await supabase.functions.invoke<Record<string, unknown> & { ok?: boolean; error?: string }>('admin-business-action', {
+        body: { id: business.id, ...body },
+      })
+      if (err || !data?.ok) {
+        setActionMsg(`⚠️ ${err?.message || data?.error || 'Action failed'}`)
+        return
+      }
+      apply(data)
+      setActionMsg(`✓ ${okMsg}`)
+    } finally {
+      setActionBusy(null)
+    }
+  }
+
+  async function extendTrial() {
+    const days = Number(trialDays)
+    await runAction('trial', { action: 'extend_trial', days }, (resp) => {
+      const b = resp.business as { subscription_status: string; trial_ends_at: string } | undefined
+      if (b) setBusiness(prev => prev ? { ...prev, subscription_status: b.subscription_status, trial_ends_at: b.trial_ends_at } : prev)
+    }, `Trial extended by ${days} day${days === 1 ? '' : 's'}. The desktop picks it up at its next sync.`)
+  }
+
+  async function revokeDevice(d: SyncDeviceRow) {
+    if (!window.confirm(`Revoke "${d.label || d.device_id}"? That computer will be refused at its next sync.`)) return
+    await runAction(`rev:${d.device_id}`, { action: 'revoke_device', device_id: d.device_id }, (resp) => {
+      const dev = resp.device as { revoked_at: string } | undefined
+      setSyncDevices(prev => prev.map(x => x.device_id === d.device_id ? { ...x, revoked_at: dev?.revoked_at ?? new Date().toISOString() } : x))
+    }, 'Device revoked.')
+  }
+
   if (loading) {
     return (
       <div style={{ padding: '60px', textAlign: 'center' }}>
@@ -125,6 +167,10 @@ export default function BusinessDetail() {
           {business.is_active ? 'Active Tenant' : 'Suspended'}
         </StatusBadge>
       </div>
+
+      {actionMsg && (
+        <div className={`alert ${actionMsg.startsWith('✓') ? 'alert-success' : 'alert-danger'}`} style={{ marginBottom: '20px' }}>{actionMsg}</div>
+      )}
 
       {/* Overview Cards */}
       <div style={businessDetailStyles.kpiGrid}>
@@ -170,6 +216,22 @@ export default function BusinessDetail() {
             {business.subscription_status === 'trialing' && business.trial_ends_at && (
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
                 Trial ends {new Date(business.trial_ends_at).toLocaleDateString()}
+              </div>
+            )}
+            {(!business.subscription_status || business.subscription_status === 'trialing') && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Extend by</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={trialDays}
+                  onChange={e => setTrialDays(e.target.value)}
+                  style={{ width: '48px', padding: '4px 8px', fontSize: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>days</span>
+                <button className="btn btn-sm" disabled={actionBusy === 'trial'} onClick={() => void extendTrial()}>
+                  {actionBusy === 'trial' ? '…' : 'Extend trial'}
+                </button>
               </div>
             )}
           </div>
@@ -244,12 +306,44 @@ export default function BusinessDetail() {
                     <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)' }}>{d.label || d.device_id.slice(0, 12) + '…'}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>last synced {fmtDate(d.last_seen_at)}</div>
                   </div>
-                  <StatusBadge variant={d.revoked_at ? 'red' : 'green'}>{d.revoked_at ? 'Revoked' : 'Active'}</StatusBadge>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <StatusBadge variant={d.revoked_at ? 'red' : 'green'}>{d.revoked_at ? 'Revoked' : 'Active'}</StatusBadge>
+                    {!d.revoked_at && (
+                      <button className="btn btn-sm btn-danger" disabled={actionBusy === `rev:${d.device_id}`} onClick={() => void revokeDevice(d)}>
+                        {actionBusy === `rev:${d.device_id}` ? '…' : 'Revoke'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      </div>
+
+      {/* Desktop logins */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-primary)' }}>
+          Desktop Logins ({staff.length})
+        </h2>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          The email + password logins this business's staff use to sign in to the desktop app. Enable or disable them from the Users page.
+        </p>
+        {staff.length === 0 ? (
+          <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>No desktop logins yet.</div>
+        ) : (
+          <div style={{ display: 'grid', gap: '10px' }}>
+            {staff.map(m => (
+              <div key={m.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-primary)' }}>{m.full_name || m.email}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{m.email} · {m.role}</div>
+                </div>
+                <StatusBadge variant={m.is_active ? 'green' : 'muted'}>{m.is_active ? 'Active' : 'Disabled'}</StatusBadge>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Staff Shift Sessions */}

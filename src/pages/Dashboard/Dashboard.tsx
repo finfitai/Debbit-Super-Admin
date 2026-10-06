@@ -17,9 +17,12 @@ interface SyncSummary {
 
 interface DashboardPayload {
   ok?: boolean
+  error?: string
   summary?: SyncSummary
   chart?: SalesRow[]
   todayRevenue?: number
+  primaryCurrency?: string | null
+  byCurrency?: Record<string, { today: number; period: number }>
 }
 
 function fmt(n: number) {
@@ -33,71 +36,48 @@ export default function Dashboard() {
   const [summary, setSummary]           = useState<SyncSummary | null>(null)
   const [todayRevenue, setTodayRevenue] = useState<number | null>(null)
   const [loading, setLoading]           = useState(true)
+  const [loadError, setLoadError]       = useState<string | null>(null)
+  const [currency, setCurrency]         = useState<string | null>(null)
+  const [byCurrency, setByCurrency]     = useState<Record<string, { today: number; period: number }>>({})
 
   const load = useCallback(async () => {
     setLoading(true)
+    setLoadError(null)
     try {
+      // Everything comes from the admin-dashboard Edge Function (service role, super-admin checked). There is deliberately no
+      // direct-table fallback: with only the anon key, row-level security hides every tenant's rows and the numbers would be
+      // zeros that look real.
       const { data, error } = await supabase.functions.invoke<DashboardPayload>('admin-dashboard', {
         body: { days: 7 },
       })
-
-      if (!error && data?.ok) {
-        setSalesChart((data.chart ?? []) as SalesRow[])
-        setTodayRevenue(typeof data.todayRevenue === 'number' ? data.todayRevenue : 0)
-        setSummary(
-          data.summary
-            ? {
-                totalBusinesses: data.summary.totalBusinesses ?? 0,
-                activeWorkstations: data.summary.activeWorkstations ?? 0,
-                recentSales: data.summary.recentSales ?? 0,
-                openTickets: data.summary.openTickets ?? 0,
-              }
-            : null
-        )
+      if (error || !data?.ok) {
+        setLoadError(error?.message || data?.error || 'Failed to load the dashboard')
         return
       }
-
-      const days: string[] = []
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date()
-        d.setDate(d.getDate() - i)
-        days.push(d.toISOString().slice(0, 10))
-      }
-      const today = days[days.length - 1]
-
-      const [bizRes, wsRes, salesRes, supportRes] = await Promise.all([
-        supabase.from('businesses').select('id', { count: 'exact', head: true }),
-        supabase.from('workstation_devices').select('id', { count: 'exact', head: true }).eq('is_active', true),
-        supabase
-          .from('sales')
-          .select('sale_date, total')
-          .eq('is_void', false)
-          .gte('sale_date', days[0])
-          .lte('sale_date', today),
-        supabase.from('support_tickets').select('id', { count: 'exact', head: true }).eq('status', 'open'),
-      ])
-
-      const salesData = (salesRes.data ?? []) as SalesRow[]
-      const totals: Record<string, number> = {}
-      days.forEach(d => { totals[d] = 0 })
-      salesData.forEach(r => { totals[r.sale_date] = (totals[r.sale_date] || 0) + (r.total || 0) })
-      setSalesChart(days.map(d => ({ sale_date: d, total: totals[d] })))
-      setTodayRevenue(totals[today] ?? 0)
-
-      setSummary({
-        totalBusinesses:    bizRes.count ?? 0,
-        activeWorkstations: wsRes.count ?? 0,
-        recentSales:        salesData.reduce((s, r) => s + (r.total || 0), 0),
-        openTickets:        supportRes.count ?? 0,
-      })
+      setSalesChart((data.chart ?? []) as SalesRow[])
+      setTodayRevenue(typeof data.todayRevenue === 'number' ? data.todayRevenue : 0)
+      setCurrency(data.primaryCurrency ?? null)
+      setByCurrency(data.byCurrency ?? {})
+      setSummary(
+        data.summary
+          ? {
+              totalBusinesses: data.summary.totalBusinesses ?? 0,
+              activeWorkstations: data.summary.activeWorkstations ?? 0,
+              recentSales: data.summary.recentSales ?? 0,
+              openTickets: data.summary.openTickets ?? 0,
+            }
+          : null
+      )
     } catch (e) {
-      console.error('Dashboard load error', e)
+      setLoadError(e instanceof Error ? e.message : 'Failed to load the dashboard')
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  const otherCurrencies = Object.entries(byCurrency).filter(([c]) => c !== currency)
 
   // SVG sparkline
   const maxSale = Math.max(...salesChart.map(r => r.total), 1)
@@ -171,6 +151,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {loadError && <div className="alert alert-danger" style={{ marginBottom: '20px' }}>⚠️ {loadError}</div>}
+
       {/* AI Prompt Box */}
       <div className="ai-prompt-box">
         <span style={{ fontSize: '20px', color: 'var(--purple-main)' }}>✨</span>
@@ -189,10 +171,11 @@ export default function Dashboard() {
           <div>
             <div style={dashboardStyles.salesLabel}>TODAY&apos;S SALES</div>
             <div style={dashboardStyles.salesValue}>
-              {todayRevenue !== null ? `RM ${fmt(todayRevenue)}` : 'Loading…'}
+              {todayRevenue !== null ? `${currency ?? ''} ${fmt(todayRevenue)}`.trim() : 'Loading…'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px' }}>
-              {loading ? '…' : `Last 7 days total: RM ${fmt(summary?.recentSales ?? 0)}`}
+              {loading ? '…' : `Last 7 days total: ${currency ?? ''} ${fmt(summary?.recentSales ?? 0)}`.replace('  ', ' ')}
+              {otherCurrencies.length > 0 && <div style={{ marginTop: '4px' }}>Also: {otherCurrencies.map(([c, v]) => `${c} ${fmt(v.period)}`).join(' · ')}</div>}
             </div>
           </div>
 
@@ -249,8 +232,8 @@ export default function Dashboard() {
         />
         <StatCard
           title="7-DAY REVENUE"
-          value={loading ? '…' : `RM ${fmt(summary?.recentSales ?? 0)}`}
-          subtext="across all businesses"
+          value={loading ? '…' : `${currency ?? ''} ${fmt(summary?.recentSales ?? 0)}`.trim()}
+          subtext={otherCurrencies.length > 0 ? `${currency} only — plus ${otherCurrencies.map(([c]) => c).join(', ')}` : 'across all businesses'}
           accentColor="blue"
         />
         <StatCard

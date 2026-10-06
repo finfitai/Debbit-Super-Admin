@@ -19,31 +19,31 @@ const NAV: NavItem[] = [
   { to: '/telemetry',   label: 'Telemetry',   subtitle: 'Error & crash logs',    icon: '📡' },
   { to: '/sync',        label: 'Sync Health', subtitle: 'Workstations & POS',   icon: '🔄' },
   { to: '/billing',     label: 'Billing',     subtitle: 'Subscriptions & MRR',  icon: '💳' },
+  { to: '/admins',      label: 'Admins',      subtitle: 'Who can sign in here', icon: '🛡️' },
 ]
 
 export default function Sidebar() {
   const [businessCount, setBusinessCount] = useState<number | null>(null)
   const [userCount, setUserCount] = useState<number | null>(null)
 
+  // The headline counts come from the admin-dashboard Edge Function: the browser only holds the anon key, and row-level security
+  // hides every other business's rows from a direct table query, so counting here would always read zero.
   useEffect(() => {
     async function fetchCounts() {
-      const [bizRes, userRes] = await Promise.all([
-        supabase.from('businesses').select('id', { count: 'exact', head: true }),
-        supabase.from('business_members').select('id', { count: 'exact', head: true }),
-      ])
-      if (!bizRes.error && bizRes.count !== null) {
-        setBusinessCount(bizRes.count)
-      }
-      if (!userRes.error && userRes.count !== null) {
-        setUserCount(userRes.count)
+      const { data, error } = await supabase.functions.invoke<{ ok?: boolean; counts?: { businesses: number; staffLogins: number } }>(
+        'admin-dashboard', { body: { counts_only: true } },
+      )
+      if (!error && data?.ok && data.counts) {
+        setBusinessCount(data.counts.businesses)
+        setUserCount(data.counts.staffLogins)
       }
     }
-    fetchCounts()
+    void fetchCounts()
   }, [])
 
   const navWithBadges = NAV.map(item => {
     if (item.to === '/businesses') {
-      return { ...item, badge: businessCount !== null ? `${businessCount} active` : '…' }
+      return { ...item, badge: businessCount !== null ? String(businessCount) : '…' }
     }
     if (item.to === '/users') {
       return { ...item, badge: userCount !== null ? String(userCount) : '…' }

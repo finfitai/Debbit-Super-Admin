@@ -16,6 +16,10 @@ ok(r.body.byCurrency?.MYR?.period === 1500, 'MYR period total = 1500 (got ' + r.
 ok(r.body.byCurrency?.SAR?.period === 50, 'SAR kept separate, void excluded (got ' + r.body.byCurrency?.SAR?.period + ')')
 ok(r.body.summary.openTickets === 4, 'open tickets = everything not resolved/closed, any case (OPEN, IN_PROGRESS, WAITING, open); got ' + r.body.summary.openTickets)
 ok(r.body.summary.totalBusinesses === 2, 'two businesses')
+r = await call('admin-dashboard', { days: 30 })
+ok(r.body.chart?.length === 30 && r.body.byCurrency?.MYR?.period === 1500, 'dashboard period pills: a 30-day window returns 30 days of chart (got ' + r.body.chart?.length + ')')
+r = await call('admin-dashboard', { days: 99 })
+ok(r.body.chart?.length === 31, 'dashboard window is capped at 31 days')
 r = await call('admin-dashboard', { counts_only: true })
 ok(r.body.counts?.businesses === 2 && r.body.counts?.staffLogins === 1, 'counts_only ' + JSON.stringify(r.body))
 

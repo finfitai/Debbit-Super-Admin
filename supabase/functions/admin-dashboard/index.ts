@@ -33,7 +33,7 @@ Deno.serve(async (req: Request) => {
     })
   }
 
-  const days = Math.max(1, Math.min(14, Number(body.days) || 7))
+  const days = Math.max(1, Math.min(31, Number(body.days) || 7))
   const dayLabels: string[] = []
   const start = new Date()
   for (let i = days - 1; i >= 0; i--) {

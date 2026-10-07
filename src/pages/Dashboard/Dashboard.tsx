@@ -30,8 +30,7 @@ function fmt(n: number) {
 }
 
 export default function Dashboard() {
-  const [filterPeriod, setFilterPeriod] = useState<'Today' | 'Week' | 'Month'>('Today')
-  const [viewMode, setViewMode]         = useState<'Pulse' | 'Full'>('Pulse')
+  const [period, setPeriod]             = useState<7 | 14 | 30>(7)   // days shown in the chart and the revenue totals
   const [salesChart, setSalesChart]     = useState<SalesRow[]>([])
   const [summary, setSummary]           = useState<SyncSummary | null>(null)
   const [todayRevenue, setTodayRevenue] = useState<number | null>(null)
@@ -48,7 +47,7 @@ export default function Dashboard() {
       // direct-table fallback: with only the anon key, row-level security hides every tenant's rows and the numbers would be
       // zeros that look real.
       const { data, error } = await supabase.functions.invoke<DashboardPayload>('admin-dashboard', {
-        body: { days: 7 },
+        body: { days: period },
       })
       if (error || !data?.ok) {
         setLoadError(error?.message || data?.error || 'Failed to load the dashboard')
@@ -73,7 +72,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [period])
 
   useEffect(() => { void load() }, [load])
 
@@ -111,59 +110,27 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Filter Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div style={dashboardStyles.filterGroup}>
-            {(['Today', 'Week', 'Month'] as const).map(p => (
-              <button
-                key={p}
-                className="btn btn-sm"
-                style={{
-                  borderRadius: '99px',
-                  background: filterPeriod === p ? 'var(--purple-main)' : 'transparent',
-                  color: filterPeriod === p ? '#fff' : 'var(--text-secondary)',
-                  padding: '4px 14px',
-                }}
-                onClick={() => setFilterPeriod(p)}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-
-          <div style={dashboardStyles.filterGroup}>
-            {(['Pulse', 'Full'] as const).map(v => (
-              <button
-                key={v}
-                className="btn btn-sm"
-                style={{
-                  borderRadius: '99px',
-                  background: viewMode === v ? 'var(--purple-main)' : 'transparent',
-                  color: viewMode === v ? '#fff' : 'var(--text-secondary)',
-                  padding: '4px 14px',
-                }}
-                onClick={() => setViewMode(v)}
-              >
-                {v}
-              </button>
-            ))}
-          </div>
+        {/* Period: how many days the chart and the revenue totals cover */}
+        <div style={dashboardStyles.filterGroup}>
+          {([[7, 'Week'], [14, 'Fortnight'], [30, 'Month']] as const).map(([d, label]) => (
+            <button
+              key={d}
+              className="btn btn-sm"
+              style={{
+                borderRadius: '99px',
+                background: period === d ? 'var(--purple-main)' : 'transparent',
+                color: period === d ? '#fff' : 'var(--text-secondary)',
+                padding: '4px 14px',
+              }}
+              onClick={() => setPeriod(d)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
       {loadError && <div className="alert alert-danger" style={{ marginBottom: '20px' }}>⚠️ {loadError}</div>}
-
-      {/* AI Prompt Box */}
-      <div className="ai-prompt-box">
-        <span style={{ fontSize: '20px', color: 'var(--purple-main)' }}>✨</span>
-        <input
-          className="ai-prompt-input"
-          placeholder="Tell debbit what happened, or ask anything..."
-        />
-        <button className="btn btn-primary" style={{ borderRadius: '99px', padding: '8px 20px' }}>
-          Ask
-        </button>
-      </div>
 
       {/* Today's Sales Card */}
       <div className="card" style={{ marginBottom: '24px', position: 'relative', overflow: 'hidden' }}>
@@ -174,7 +141,7 @@ export default function Dashboard() {
               {todayRevenue !== null ? `${currency ?? ''} ${fmt(todayRevenue)}`.trim() : 'Loading…'}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '8px' }}>
-              {loading ? '…' : `Last 7 days total: ${currency ?? ''} ${fmt(summary?.recentSales ?? 0)}`.replace('  ', ' ')}
+              {loading ? '…' : `Last ${period} days total: ${currency ?? ''} ${fmt(summary?.recentSales ?? 0)}`.replace('  ', ' ')}
               {otherCurrencies.length > 0 && <div style={{ marginTop: '4px' }}>Also: {otherCurrencies.map(([c, v]) => `${c} ${fmt(v.period)}`).join(' · ')}</div>}
             </div>
           </div>
@@ -209,7 +176,7 @@ export default function Dashboard() {
               )}
             </svg>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              <span>7 days ago</span>
+              <span>{period} days ago</span>
               <span>Today</span>
             </div>
           </div>
@@ -231,7 +198,7 @@ export default function Dashboard() {
           accentColor="green"
         />
         <StatCard
-          title="7-DAY REVENUE"
+          title={`${period}-DAY REVENUE`}
           value={loading ? '…' : `${currency ?? ''} ${fmt(summary?.recentSales ?? 0)}`.trim()}
           subtext={otherCurrencies.length > 0 ? `${currency} only — plus ${otherCurrencies.map(([c]) => c).join(', ')}` : 'across all businesses'}
           accentColor="blue"
